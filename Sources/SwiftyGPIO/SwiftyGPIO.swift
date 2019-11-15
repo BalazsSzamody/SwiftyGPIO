@@ -34,7 +34,28 @@ internal let GPIOBASEPATH="/sys/class/gpio/"
 
 // MARK: GPIO
 
-public class GPIO {
+public protocol GPIO: AnyObject {
+    var name: String { get }
+    var id: Int { get }
+    init(name: String, id: Int)
+    var direction: GPIODirection { get set }
+    var edge: GPIOEdge { get set }
+    var activeLow: Bool { get set }
+    var value: Int { get set }
+    var isMemoryMapped: Bool { get }
+    func onFalling(_ closure: @escaping (GPIO) -> Void)
+    func onRaising(_ closure: @escaping (GPIO) -> Void)
+    func onChange(_ closure: @escaping (GPIO) -> Void)
+}
+
+extension GPIO {
+    @available(deprecated, message: "isMemoryMapped method is deprectaed, use isMemoryMapped Boolean property instead")
+    public func isMemoryMapped() -> Bool {
+        return isMemoryMapped
+    }
+}
+
+open class GenericGPIO: GPIO {
     public var bounceTime: TimeInterval?
 
     public private(set) var name: String = ""
@@ -46,7 +67,7 @@ public class GPIO {
     var intRaising: (func: ((GPIO) -> Void), lastCall: Date?)?
     var intChange: (func: ((GPIO) -> Void), lastCall: Date?)?
 
-    public init(name: String,
+    required public init(name: String,
                 id: Int) {
         self.name = name
         self.id = id
@@ -94,7 +115,7 @@ public class GPIO {
         }
     }
 
-    public var value: Int {
+    open var value: Int {
         set(val) {
             if !exported {enableIO(id)}
             performSetting("gpio"+String(id)+"/value", value: val)
@@ -143,7 +164,7 @@ public class GPIO {
 
 }
 
-fileprivate extension GPIO {
+public extension GenericGPIO {
 
     func enableIO(_ id: Int) {
         writeToFile(GPIOBASEPATH+"export", value:String(id))
@@ -270,7 +291,7 @@ fileprivate extension GPIO {
     }
 }
 
-extension GPIO: CustomStringConvertible {
+extension GenericGPIO: CustomStringConvertible {
     public var description: String {
         return "\(name)<\(direction),\(edge),\(activeLow)>: \(value)"
     }
@@ -279,6 +300,35 @@ extension GPIO: CustomStringConvertible {
 // MARK: GPIO:Raspberry
 
 public final class RaspberryGPIO: GPIO {
+    public var isMemoryMapped: Bool {
+        return true
+    }
+    
+    public var name: String
+    
+    public var id: Int
+    
+    public init(name: String, id: Int) {
+        self.name = name
+        self.id = id
+    }
+    
+    public var edge: GPIOEdge
+    
+    public var activeLow: Bool
+    
+    public func onFalling(_ closure: @escaping (GPIO) -> Void) {
+        <#code#>
+    }
+    
+    public func onRaising(_ closure: @escaping (GPIO) -> Void) {
+        <#code#>
+    }
+    
+    public func onChange(_ closure: @escaping (GPIO) -> Void) {
+        <#code#>
+    }
+    
 
     var setGetId: UInt32 = 0
     var baseAddr: Int = 0
@@ -296,10 +346,10 @@ public final class RaspberryGPIO: GPIO {
         self.setGetId = UInt32(1<<id)
         self.BCM2708_PERI_BASE = baseAddr
         self.GPIO_BASE = BCM2708_PERI_BASE + 0x200000 /* GPIO controller */
-        super.init(name:name, id:id)
+        self.init(name: name, )
     }
 
-    public override var value: Int {
+    public var value: Int {
         set(val) {
             if !inited {initIO()}
             gpioSet(val)
@@ -310,7 +360,7 @@ public final class RaspberryGPIO: GPIO {
         }
     }
 
-    public override var direction: GPIODirection {
+    public var direction: GPIODirection {
         set(dir) {
             if !inited {initIO()}
             if dir == .IN {
@@ -325,7 +375,7 @@ public final class RaspberryGPIO: GPIO {
         }
     }
 
-    public override var pull: GPIOPull {
+    public var pull: GPIOPull {
         set(pull) {
             if !exported {enableIO(id)}
             setGpioPull(pull)
@@ -333,10 +383,6 @@ public final class RaspberryGPIO: GPIO {
         get{
             fatalError("Parameter cannot be read.")
         }
-    }
-
-    public override func isMemoryMapped() -> Bool {
-        return true
     }
 
     private func initIO() {
@@ -420,7 +466,7 @@ public final class RaspberryGPIO: GPIO {
 
 public struct SwiftyGPIO {
 
-    public static func GPIOs(for board: SupportedBoard) -> [GPIOName: GPIO] {
+    public static func GPIOs(for board: SupportedBoard) -> [GPIOName: GenericGPIO] {
         switch board {
         case .RaspberryPiRev1:
             return GPIORPIRev1

@@ -80,7 +80,7 @@ public extension SunXiGPIO {
 
 // MARK: - Extensions
 
-public extension GPIO {
+public extension GenericGPIO {
 
     convenience init(sunXi: SunXiGPIO) {
 
